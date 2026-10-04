@@ -634,8 +634,12 @@ test('--print-to writes a PDF with no printer in the pipeline', async () => {
   try {
     const command = r.pdfCommand(cfg)
     assert.doesNotMatch(command, /\blp\b/, 'a PDF run never touches a printer')
+    // CI runners (and many machines) have no paps: fall back to plain `cat`.
+    if (!r.hasPaps()) {
+      assert.match(command, /^cat > /)
+      return
+    }
     assert.match(command, /--format=pdf/)
-    if (!r.hasPaps()) return // without paps we can only check the command shape
 
     const state = press(new r.State(cfg), [
       '1',
