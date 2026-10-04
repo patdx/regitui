@@ -742,14 +742,15 @@ function renderReceipt(c, state, rows, cols) {
   lines.forEach((line, i) => {
     if (cy + i < rows - 1) c.put(cy + i, cx, line)
   })
-  c.putRight(
-    rows - 1,
-    cols - 1,
-    cols >= 64
-      ? '  R = back   F = print   ENTER = new sale   Q = quit '
-      : '  R back  F print  Q quit ',
-    'dim',
-  )
+  {
+    const receiptHints = [
+      '  R = back   F = print   ENTER = new sale   Q = quit ',
+      '  R back  F print  ENTER new  Q quit ',
+      '  R F ENT Q ',
+    ]
+    const hint = receiptHints.find((h) => h.length + 2 <= cols) || ''
+    c.putRight(rows - 1, cols - 1, hint, 'dim')
+  }
   return c
 }
 
@@ -796,24 +797,33 @@ function drawItems(c, y, x, h, w, state) {
 
 function drawStatus(c, y, cols, state) {
   const typed = groupInt(state.entry || '0')
-  const zeroes = state.cfg.decimals <= 0 ? '   . = 00 ' : ''
-  let text, longHint, shortHint
+  const zeroes = state.cfg.decimals <= 0
+  let text, hints
   if (state.mode === 'amount') {
     text = ` NEXT ITEM  > ${state.entry ? state.cfg.currency + typed : ''}_`
-    longHint = `${zeroes}  ENTER = add item   P = pay   F = print   R = receipt   U = undo   Q = quit `
-    shortHint = '  ENTER add  P pay  F print  R receipt  U undo  Q quit '
+    hints = [
+      `${zeroes ? '   . = 00 ' : ''}  ENTER = add item   P = pay   F = print   R = receipt   U = undo   Q = quit `,
+      '  ENTER add  P pay  F print  R receipt  U undo  Q quit ',
+      zeroes ? ' .=00 E P F R U Q' : ' E P F R U Q',
+    ]
   } else if (state.mode === 'tender') {
     text = ` CASH  > ${state.entry ? state.cfg.currency + typed : ''}_`
-    longHint = '  ENTER = confirm cash   ESC = cancel '
-    shortHint = '  ENTER ok  ESC cancel '
+    hints = [
+      '  ENTER = confirm cash   ESC = cancel ',
+      '  ENTER ok  ESC cancel ',
+      ' ENT/ESC',
+    ]
   } else {
     text = ` CHANGE ${state.show(state.change)}`
-    longHint =
-      '  ENTER = new sale   F = print receipt   R = receipt   Q = quit '
-    shortHint = '  ENTER new  F print  R receipt  Q quit '
+    hints = [
+      '  ENTER = new sale   F = print receipt   R = receipt   Q = quit ',
+      '  ENTER new  F print  R receipt  Q quit ',
+      ' E F R Q',
+    ]
   }
-  let hint = cols >= text.length + longHint.length + 2 ? longHint : shortHint
-  if (cols < text.length + hint.length + 2) hint = ''
+  // Pick the longest guide that still fits beside the left status text.
+  const budget = Math.max(0, cols - text.length - 2)
+  const hint = hints.find((h) => h.length <= budget) || ''
   c.put(
     y,
     0,

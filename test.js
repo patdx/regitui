@@ -345,6 +345,20 @@ test('frames render at every plausible size without throwing', () => {
   }
 })
 
+test('the status line keeps a keyboard guide when width allows', () => {
+  const state = new r.State(r.defaultConfig())
+  const wide = plain(state, 24, 104).at(-1)
+  assert.match(wide, /ENTER = add item/)
+  assert.match(wide, /\. = 00/)
+  const mid = plain(state, 24, 80).at(-1)
+  assert.match(mid, /ENTER add/)
+  assert.match(mid, /P pay/)
+  const narrow = plain(state, 24, 42).at(-1)
+  assert.match(narrow, /E P F R U Q/)
+  // browser host targets ~80 cols; a mid-width frame must not blank the guide
+  assert.match(plain(state, 24, 72).at(-1), /ENTER add|E P F R U Q/)
+})
+
 test('the PAID stamp always gets its own row', () => {
   for (let rows = 12; rows <= 46; rows++) {
     for (const cols of [34, 60, 80, 165]) {

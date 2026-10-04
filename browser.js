@@ -18,8 +18,8 @@ const TAG_CLASS = {
 /** Match core.js's "terminal too small" floor so we size the font to stay usable. */
 const MIN_COLS = 34
 const MIN_ROWS = 12
-/** Aim for enough columns that the header / status line don't collide. */
-const PREFERRED_COLS = 42
+/** Aim wide enough for the short status-line key guide (see drawStatus). */
+const PREFERRED_COLS = 80
 const MIN_FONT_PX = 10
 const MAX_FONT_PX = 28
 
