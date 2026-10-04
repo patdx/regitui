@@ -65,66 +65,58 @@ function eventToken(e) {
   }
 }
 
-/**
- * Logical terminal size (keyboard-closed). Width changes (rotation) reset it;
- * height only grows so a soft keyboard opening doesn't collapse the grid.
- */
-let stableW = 0
-let stableH = 0
-
-function logicalSize() {
-  const w = window.innerWidth
-  const h = Math.max(window.innerHeight, window.visualViewport?.height ?? 0)
-  if (!stableW || Math.abs(w - stableW) > 50) {
-    stableW = w
-    stableH = h
-  } else {
-    stableW = w
-    if (h > stableH) stableH = h
+function visibleBox() {
+  const innerW = window.innerWidth
+  const innerH = window.innerHeight
+  const vv = window.visualViewport
+  if (!vv) return { w: innerW, h: innerH, left: 0, top: 0 }
+  // Take the smaller size: soft keyboards shrink visualViewport, while some
+  // environments update innerHeight first and leave visualViewport stale.
+  const w = Math.min(innerW, vv.width)
+  const h = Math.min(innerH, vv.height)
+  const stale = vv.width > innerW + 1 || vv.height > innerH + 1
+  return {
+    w,
+    h,
+    left: stale ? 0 : vv.offsetLeft,
+    top: stale ? 0 : vv.offsetTop,
   }
-  return { w: stableW, h: stableH }
 }
 
-/** Size #screen to the keyboard-closed logical viewport (no scale). */
-function sizeLogical(screen) {
-  const { w, h } = logicalSize()
+/** Phone portrait: a landscape 4:3 stage. Desktop / landscape: fill the viewport. */
+function contentSize(vis) {
+  const portraitMobile = vis.w < 600 && vis.w < vis.h
+  if (!portraitMobile) return { w: Math.round(vis.w), h: Math.round(vis.h) }
+  // Largest 4:3 rectangle inside the visible area (width-first; height if needed).
+  let w = vis.w
+  let h = (w * 3) / 4
+  if (h > vis.h) {
+    h = vis.h
+    w = (h * 4) / 3
+  }
+  return { w: Math.round(w), h: Math.round(h) }
+}
+
+/** Position #screen (and the tap overlay) for the current visual viewport. */
+function layoutScreen(screen) {
+  const vis = visibleBox()
+  const { w, h } = contentSize(vis)
+  const ox = vis.left + (vis.w - w) / 2
+  const oy = vis.top + (vis.h - h) / 2
   screen.style.transform = 'none'
   screen.style.width = `${w}px`
   screen.style.height = `${h}px`
-  screen.style.left = '0px'
-  screen.style.top = '0px'
-  return { w, h }
-}
-
-/**
- * Scale the logical terminal into the visual viewport so the full grid stays
- * visible when the soft keyboard eats the bottom of the screen.
- */
-function fitToVisible(screen) {
-  const vv = window.visualViewport
-  const visW = vv?.width ?? window.innerWidth
-  const visH = vv?.height ?? window.innerHeight
-  const left = vv?.offsetLeft ?? 0
-  const top = vv?.offsetTop ?? 0
-  const logW = screen.clientWidth || logicalSize().w
-  const logH = screen.clientHeight || logicalSize().h
-  const scale = Math.min(visW / logW, visH / logH, 1)
-  const ox = left + (visW - logW * scale) / 2
-  const oy = top + (visH - logH * scale) / 2
   screen.style.left = `${ox}px`
   screen.style.top = `${oy}px`
-  screen.style.transformOrigin = 'top left'
-  screen.style.transform = scale < 1 ? `scale(${scale})` : 'none'
 
   const kbd = document.getElementById('kbd')
   if (kbd) {
-    // Overlay tracks the visible viewport (taps), not the scaled logical screen.
-    kbd.style.width = `${visW}px`
-    kbd.style.height = `${visH}px`
-    kbd.style.left = `${left}px`
-    kbd.style.top = `${top}px`
+    kbd.style.width = `${vis.w}px`
+    kbd.style.height = `${vis.h}px`
+    kbd.style.left = `${vis.left}px`
+    kbd.style.top = `${vis.top}px`
   }
-  return { scale, logW, logH, visW, visH }
+  return { w, h, vis }
 }
 
 function measureGrid(screen, probe) {
@@ -241,10 +233,9 @@ function start() {
   }
 
   const frame = () => {
-    sizeLogical(screen)
+    layoutScreen(screen)
     const { cols, rows } = fitFont(screen, probe)
     paintCanvas(screen, render(state, rows, cols))
-    fitToVisible(screen)
   }
 
   const onKey = (e) => {
@@ -271,11 +262,25 @@ function start() {
   // A real focused field is what makes the soft keyboard appear on mobile.
   const focusKbd = () => kbd.focus({ preventScroll: true })
   document.addEventListener('pointerdown', focusKbd)
-  window.addEventListener('resize', frame)
-  window.visualViewport?.addEventListener('resize', frame)
-  window.visualViewport?.addEventListener('scroll', frame)
-  new ResizeObserver(frame).observe(screen)
-  frame()
+
+  let viewportKey = ''
+  const frameIfViewportChanged = () => {
+    const vis = visibleBox()
+    const key = `${Math.round(vis.w)}x${Math.round(vis.h)}@${Math.round(vis.left)},${Math.round(vis.top)}`
+    if (key === viewportKey) return
+    viewportKey = key
+    frame()
+  }
+
+  window.addEventListener('resize', frameIfViewportChanged)
+  window.visualViewport?.addEventListener('resize', frameIfViewportChanged)
+  window.visualViewport?.addEventListener('scroll', frameIfViewportChanged)
+  // Observe the document (not #screen): we size #screen ourselves, so watching
+  // it would miss viewport changes that don't emit a window resize event.
+  new ResizeObserver(frameIfViewportChanged).observe(document.documentElement)
+  // Soft-keyboard viewport changes are not reliable across browsers; poll lightly.
+  setInterval(frameIfViewportChanged, 250)
+  frameIfViewportChanged()
   focusKbd()
 }
 
