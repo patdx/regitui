@@ -15,6 +15,14 @@ const TAG_CLASS = {
   hl: 'c-hl',
 }
 
+/** Match core.js's "terminal too small" floor so we size the font to stay usable. */
+const MIN_COLS = 34
+const MIN_ROWS = 12
+/** Aim for enough columns that the header / status line don't collide. */
+const PREFERRED_COLS = 42
+const MIN_FONT_PX = 10
+const MAX_FONT_PX = 28
+
 function configFromPage() {
   const cfg = defaultConfig()
   const params = new URLSearchParams(location.search)
@@ -57,6 +65,68 @@ function eventToken(e) {
   }
 }
 
+/**
+ * Logical terminal size (keyboard-closed). Width changes (rotation) reset it;
+ * height only grows so a soft keyboard opening doesn't collapse the grid.
+ */
+let stableW = 0
+let stableH = 0
+
+function logicalSize() {
+  const w = window.innerWidth
+  const h = Math.max(window.innerHeight, window.visualViewport?.height ?? 0)
+  if (!stableW || Math.abs(w - stableW) > 50) {
+    stableW = w
+    stableH = h
+  } else {
+    stableW = w
+    if (h > stableH) stableH = h
+  }
+  return { w: stableW, h: stableH }
+}
+
+/** Size #screen to the keyboard-closed logical viewport (no scale). */
+function sizeLogical(screen) {
+  const { w, h } = logicalSize()
+  screen.style.transform = 'none'
+  screen.style.width = `${w}px`
+  screen.style.height = `${h}px`
+  screen.style.left = '0px'
+  screen.style.top = '0px'
+  return { w, h }
+}
+
+/**
+ * Scale the logical terminal into the visual viewport so the full grid stays
+ * visible when the soft keyboard eats the bottom of the screen.
+ */
+function fitToVisible(screen) {
+  const vv = window.visualViewport
+  const visW = vv?.width ?? window.innerWidth
+  const visH = vv?.height ?? window.innerHeight
+  const left = vv?.offsetLeft ?? 0
+  const top = vv?.offsetTop ?? 0
+  const logW = screen.clientWidth || logicalSize().w
+  const logH = screen.clientHeight || logicalSize().h
+  const scale = Math.min(visW / logW, visH / logH, 1)
+  const ox = left + (visW - logW * scale) / 2
+  const oy = top + (visH - logH * scale) / 2
+  screen.style.left = `${ox}px`
+  screen.style.top = `${oy}px`
+  screen.style.transformOrigin = 'top left'
+  screen.style.transform = scale < 1 ? `scale(${scale})` : 'none'
+
+  const kbd = document.getElementById('kbd')
+  if (kbd) {
+    // Overlay tracks the visible viewport (taps), not the scaled logical screen.
+    kbd.style.width = `${visW}px`
+    kbd.style.height = `${visH}px`
+    kbd.style.left = `${left}px`
+    kbd.style.top = `${top}px`
+  }
+  return { scale, logW, logH, visW, visH }
+}
+
 function measureGrid(screen, probe) {
   const style = getComputedStyle(screen)
   probe.style.font = style.font
@@ -66,9 +136,46 @@ function measureGrid(screen, probe) {
   const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
   const cw = probe.getBoundingClientRect().width || 8
   const ch = probe.getBoundingClientRect().height || 16
-  const cols = Math.max(20, Math.floor((screen.clientWidth - padX) / cw))
-  const rows = Math.max(8, Math.floor((screen.clientHeight - padY) / ch))
+  const cols = Math.max(1, Math.floor((screen.clientWidth - padX) / cw))
+  const rows = Math.max(1, Math.floor((screen.clientHeight - padY) / ch))
   return { cols, rows }
+}
+
+/**
+ * Fit the monospace grid to the viewport: prefer PREFERRED_COLS so the UI
+ * stays readable, but never drop below MIN_COLS × MIN_ROWS when possible.
+ */
+function fitFont(screen, probe) {
+  // Phones can go a bit larger; desktop keeps the previous ~18px ceiling.
+  const maxFont = screen.clientWidth < 600 ? MAX_FONT_PX : 18
+  const largestFor = (wantCols) => {
+    let lo = MIN_FONT_PX
+    let hi = maxFont
+    let best = MIN_FONT_PX
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2)
+      screen.style.fontSize = `${mid}px`
+      const { cols, rows } = measureGrid(screen, probe)
+      if (cols >= wantCols && rows >= MIN_ROWS) {
+        best = mid
+        lo = mid + 1
+      } else {
+        hi = mid - 1
+      }
+    }
+    return best
+  }
+  // Prefer a comfortable width; if the viewport is too narrow for that,
+  // fall back to the hard minimum so core doesn't show "too small".
+  let size = largestFor(PREFERRED_COLS)
+  screen.style.fontSize = `${size}px`
+  let grid = measureGrid(screen, probe)
+  if (grid.cols < MIN_COLS || grid.rows < MIN_ROWS) {
+    size = largestFor(MIN_COLS)
+    screen.style.fontSize = `${size}px`
+    grid = measureGrid(screen, probe)
+  }
+  return grid
 }
 
 /** Paint a Canvas into #screen using per-cell CSS classes (no ANSI). */
@@ -112,18 +219,12 @@ function printReceiptBrowser(state, cfg) {
 function start() {
   const screen = document.getElementById('screen')
   const probe = document.getElementById('probe')
+  const kbd = document.getElementById('kbd')
   const cfg = configFromPage()
   const state = new State(cfg)
 
-  const frame = () => {
-    const { cols, rows } = measureGrid(screen, probe)
-    paintCanvas(screen, render(state, rows, cols))
-  }
-
-  const onKey = (e) => {
-    const token = eventToken(e)
+  const applyToken = (token) => {
     if (token === 'IGNORE') return
-    e.preventDefault()
     state.handle(token)
     if (state.quit) {
       state.quit = false
@@ -139,11 +240,43 @@ function start() {
     frame()
   }
 
-  window.addEventListener('keydown', onKey)
+  const frame = () => {
+    sizeLogical(screen)
+    const { cols, rows } = fitFont(screen, probe)
+    paintCanvas(screen, render(state, rows, cols))
+    fitToVisible(screen)
+  }
+
+  const onKey = (e) => {
+    // Mobile IMEs often emit keyCode 229 / Unidentified; the input handler covers those.
+    if (e.isComposing || e.keyCode === 229 || e.key === 'Unidentified') return
+    const token = eventToken(e)
+    if (token === 'IGNORE') return
+    e.preventDefault()
+    applyToken(token)
+  }
+
+  const onInput = () => {
+    const value = kbd.value
+    if (!value) return
+    kbd.value = ''
+    for (const ch of value) {
+      if (ch === '\n' || ch === '\r') applyToken('ENTER')
+      else applyToken(ch)
+    }
+  }
+
+  kbd.addEventListener('keydown', onKey)
+  kbd.addEventListener('input', onInput)
+  // A real focused field is what makes the soft keyboard appear on mobile.
+  const focusKbd = () => kbd.focus({ preventScroll: true })
+  document.addEventListener('pointerdown', focusKbd)
   window.addEventListener('resize', frame)
+  window.visualViewport?.addEventListener('resize', frame)
+  window.visualViewport?.addEventListener('scroll', frame)
   new ResizeObserver(frame).observe(screen)
   frame()
-  screen.focus({ preventScroll: true })
+  focusKbd()
 }
 
 if (document.readyState === 'loading') {

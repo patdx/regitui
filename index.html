@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>regitui</title>
     <style>
       :root {
@@ -17,14 +20,20 @@
       body {
         margin: 0;
         height: 100%;
+        height: 100dvh;
         overflow: hidden;
         background: var(--bg);
         color: var(--fg);
         font-family:
           'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Liberation Mono',
           monospace;
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
       }
       #screen {
+        position: fixed;
+        top: 0;
+        left: 0;
         margin: 0;
         width: 100%;
         height: 100%;
@@ -32,12 +41,29 @@
         overflow: hidden;
         white-space: pre;
         line-height: 1.2;
-        font-size: clamp(12px, 1.6vw, 18px);
+        font-size: 16px;
         tab-size: 1;
         outline: none;
         cursor: default;
+        pointer-events: none;
+        transform-origin: top left;
       }
-      #screen:focus {
+      /* Transparent overlay so a tap focuses a real field and opens the soft keyboard. */
+      #kbd {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        resize: none;
+        opacity: 0;
+        color: transparent;
+        caret-color: transparent;
+        background: transparent;
+        font-size: 16px;
+        z-index: 1;
         outline: none;
       }
       /* measure one character cell — pin to 0,0 so it can't extend past #screen
@@ -102,6 +128,7 @@
         /* display:none (not visibility:hidden) — otherwise #screen's 100vh
            still consumes a full blank/duplicate page in the print layout. */
         #screen,
+        #kbd,
         #probe {
           display: none !important;
         }
@@ -122,7 +149,16 @@
     </style>
   </head>
   <body>
-    <pre id="screen" tabindex="0" aria-label="Cash register"></pre>
+    <pre id="screen" aria-hidden="true"></pre>
+    <textarea
+      id="kbd"
+      aria-label="Cash register"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck="false"
+      enterkeyhint="enter"
+    ></textarea>
     <span id="probe">M</span>
     <pre id="print-sheet"></pre>
     <script type="module" src="./browser.js"></script>
