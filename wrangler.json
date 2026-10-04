@@ -1,0 +1,13 @@
+{
+  "name": "regitui",
+  "compatibility_date": "2026-10-04",
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    {
+      "pattern": "regitui.pmil.me",
+      "custom_domain": true
+    }
+  ]
+}
