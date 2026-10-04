@@ -2,6 +2,7 @@
 
 A tiny pretend-play cash register for kids — type prices, take cash, make change,
 print a receipt. Runs in the terminal or the browser. Zero runtime dependencies.
+MIT licensed.
 
 <!-- demo:start -->
 ```

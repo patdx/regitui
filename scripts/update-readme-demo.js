@@ -67,4 +67,6 @@ function inject(readme, frame) {
 const frame = demoFrame()
 const next = inject(fs.readFileSync(README, 'utf8'), frame)
 fs.writeFileSync(README, next)
-console.log(`updated ${path.relative(ROOT, README)} (${ROWS}x${COLS}, ${KEYS.length} keys)`)
+console.log(
+  `updated ${path.relative(ROOT, README)} (${ROWS}x${COLS}, ${KEYS.length} keys)`,
+)
