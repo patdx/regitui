@@ -1,4 +1,3 @@
-"use strict";
 /*
  * Tests for regitui.  Run with:  node --test
  *
@@ -7,14 +6,30 @@
  * needed.
  */
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import zlib from "node:zlib";
+import * as core from "./core.js";
+import * as node from "./register.js";
+
 // Tripwire: no test may ever reach real paper. Every default pipeline in this
 // suite is diverted to a null sink, and the "paper is never the target" test
 // below fails if this is removed.
 process.env.REGITUI_PRINT_CMD = "cat > /dev/null";
 
-const r = require("./register.js");
+/** Core logic + Node print/env helpers under one name (matches the old suite). */
+const r = {
+  ...core,
+  defaultConfig: () => node.defaultConfig(),
+  printReceipt: node.printReceipt,
+  printCommandFor: node.printCommandFor,
+  defaultPrintCommand: node.defaultPrintCommand,
+  pdfCommand: node.pdfCommand,
+  shellQuote: node.shellQuote,
+  hasPaps: node.hasPaps,
+  loadEnvFile: node.loadEnvFile,
+};
 
 const press = (state, keys) => {
   for (const key of keys) state.handle(key);
@@ -317,7 +332,6 @@ test("paps is used when present, and a custom pipeline can replace it", () => {
 });
 
 test("printing actually runs the pipeline and reports back", async () => {
-  const fs = require("node:fs");
   const out = "/tmp/regitui-print-test.txt";
   fs.rmSync(out, { force: true });
   const cfg = { ...r.defaultConfig(), receiptTime: "2026-10-04 16:30", printCmd: `cat > ${out}` };
@@ -343,7 +357,6 @@ test("a failing pipeline is reported, not thrown", async () => {
 
 /** pull the glyphs a PDF actually draws out of its inflated content streams */
 function pdfGlyphs(buf) {
-  const zlib = require("node:zlib");
   let stream = "";
   for (const m of buf.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
     try {
@@ -374,7 +387,6 @@ test("the test suite can never reach a real printer", () => {
 });
 
 test("--print-to writes a PDF with no printer in the pipeline", async () => {
-  const fs = require("node:fs");
   const out = "/tmp/regitui-print-to.pdf";
   fs.rmSync(out, { force: true });
   const cfg = { ...r.defaultConfig(), receiptTime: "2026-10-04 16:30", printTo: out, printCmd: "" };
@@ -409,7 +421,6 @@ test("shellQuote survives awkward paths", () => {
 });
 
 test("loadEnvFile fills unset keys from a dotenv-style file", () => {
-  const fs = require("node:fs");
   const file = "/tmp/regitui-env-test.env";
   fs.writeFileSync(
     file,
@@ -417,7 +428,7 @@ test("loadEnvFile fills unset keys from a dotenv-style file", () => {
       "# comment",
       "REGITUI_ENV_TEST_A=alpha",
       "REGITUI_ENV_TEST_B='beta value'",
-      "REGITUI_ENV_TEST_C=\"gamma\"",
+      'REGITUI_ENV_TEST_C="gamma"',
       "not a line",
       "",
     ].join("\n"),

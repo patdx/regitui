@@ -1,9 +1,9 @@
 # regitui
 
-A tiny pretend-play cash register for the terminal, in **pure Node.js** — no
-`npm install`, no dependencies, no build step. Made for playing shop with kids:
-readable numbers, type any price, watch the total grow, work out the change, then
-look at (or print) the receipt.
+A tiny pretend-play cash register — same logic in the terminal and the browser.
+**Zero runtime dependencies** (no install needed to play). Made for playing
+shop with kids: readable numbers, type any price, watch the total grow, work out
+the change, then look at (or print) the receipt.
 
 ```bash
 node register.js            # Japanese yen (default): ¥1,250, whole yen
@@ -11,6 +11,20 @@ node register.js --dollars  # $1.50 style, with cents
 ```
 
 Run it from this directory; `node register.js --help` lists every flag.
+
+Layout: [`core.js`](core.js) is the shared brain; [`register.js`](register.js) is the
+Node host (TTY + CUPS); [`browser.js`](browser.js) + [`index.html`](index.html) are
+the browser host.
+
+## Browser
+
+```bash
+pnpm preview                # build → dist/, then serve it (via pnpm dlx serve)
+```
+
+Open the served page and use the same keys as the terminal. `F` / `CTRL-P` opens
+the browser print dialog with the plain receipt (no CUPS). Query flags work too,
+e.g. `?dollars` or `?store=KIDS%20MART`.
 
 ## Keys
 
@@ -169,7 +183,8 @@ one-column margin so borders never land in that cell anyway.
 ## Testing
 
 ```bash
-node --test
+pnpm test                   # or: node --test
+pnpm build                  # smoke-check the dist/ copy
 ```
 
 `test.js` drives the same `State`/`render`/`receiptLines` code the TUI uses: the

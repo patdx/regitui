@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>regitui</title>
+    <style>
+      :root {
+        --bg: #0c1222;
+        --fg: #d8e0f0;
+        --muted: #6b7a94;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "DejaVu Sans Mono", "Cascadia Mono", "Consolas", "Liberation Mono", monospace;
+      }
+      #screen {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0.5rem 0.75rem;
+        overflow: hidden;
+        white-space: pre;
+        line-height: 1.2;
+        font-size: clamp(12px, 1.6vw, 18px);
+        tab-size: 1;
+        outline: none;
+        cursor: default;
+      }
+      #screen:focus {
+        outline: none;
+      }
+      /* measure one character cell — pin to 0,0 so it can't extend past #screen
+         and create a document scrollbar (absolute static-position would sit below) */
+      #probe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        visibility: hidden;
+        white-space: pre;
+        line-height: 1.2;
+        font-size: inherit;
+        font-family: inherit;
+        pointer-events: none;
+      }
+      .c-total {
+        color: #3dd68c;
+        font-weight: 700;
+      }
+      .c-change {
+        color: #f0c14b;
+        font-weight: 700;
+      }
+      .c-label {
+        color: #5ec8f0;
+      }
+      .c-dim {
+        color: var(--muted);
+      }
+      .c-warn {
+        color: #ff6b6b;
+        font-weight: 700;
+      }
+      .c-ok {
+        color: #3dd68c;
+      }
+      .c-frame {
+        color: #5b7fc7;
+      }
+      .c-hl {
+        background: var(--fg);
+        color: var(--bg);
+        font-weight: 700;
+      }
+      #print-sheet {
+        display: none;
+      }
+      @media print {
+        /* Zero page margin: Chromium draws URL/date headers in that band, so
+           this is the closest a page can get to hiding print chrome. Users can
+           still toggle headers/footers in the print dialog on other browsers. */
+        @page {
+          margin: 0;
+        }
+        html,
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          background: #fff !important;
+        }
+        /* display:none (not visibility:hidden) — otherwise #screen's 100vh
+           still consumes a full blank/duplicate page in the print layout. */
+        #screen,
+        #probe {
+          display: none !important;
+        }
+        #print-sheet {
+          display: block !important;
+          position: static;
+          width: 100%;
+          margin: 0;
+          padding: 10mm 0;
+          white-space: pre;
+          text-align: center;
+          font-family: "DejaVu Sans Mono", "Courier New", monospace;
+          font-size: 12pt;
+          color: #000;
+          background: #fff;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="screen" tabindex="0" aria-label="Cash register"></pre>
+    <span id="probe">M</span>
+    <pre id="print-sheet"></pre>
+    <script type="module" src="./browser.js"></script>
+  </body>
+</html>

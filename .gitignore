@@ -1,9 +1,19 @@
 # Local machine defaults (printer name, store name, etc.)
 .env
 
+# Dependencies
+node_modules/
+
+# Browser build output
+dist/
+
 # Editor / OS noise
 .DS_Store
 *.swp
 *~
 .idea/
 .vscode/
+
+# Local debug / agent artifacts
+.playwright-mcp/
+regitui-scrollbar*.png
